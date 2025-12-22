@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.urls import reverse_lazy, reverse
+from datetime import timedelta
 
 
 from .forms import CommentForm, PostForm, UserProfileForm
@@ -22,7 +23,7 @@ class PostListView(ListView):
     def get_queryset(self):
         queryset = Post.objects.filter(
             is_published=True,
-            pub_date__lte=timezone.now(),
+            pub_date__lte=timezone.now() + timedelta(seconds=1),
             category__is_published=True
         ).select_related('author').prefetch_related(
             'category', 'location').order_by('-pub_date').annotate(
