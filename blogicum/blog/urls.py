@@ -1,5 +1,4 @@
 from django.urls import path
-from .forms import CustomUserCreationForm
 from . import views
 
 app_name = 'blog'

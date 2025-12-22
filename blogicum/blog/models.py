@@ -88,9 +88,9 @@ class Comment(models.Model):
         verbose_name='Автор комментария'
     )
     post = models.ForeignKey(
-        Post, on_delete=models.CASCADE, 
-        verbose_name='Комментарий', 
-        related_name='comments', 
+        Post, on_delete=models.CASCADE,
+        verbose_name='Комментарий',
+        related_name='comments',
         null=True)
     text = models.TextField(
         verbose_name='Текст комментария'

@@ -36,13 +36,13 @@ class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = User
         fields = ['username', 'email', 'password1', 'password2']
-    
+
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email):
             raise forms.ValidationError('Этот email уже используется')
         return email
-    
+
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data['email']
