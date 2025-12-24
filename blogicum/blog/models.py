@@ -1,9 +1,14 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from core.models import BaseModel
-
+from django.db.models import Count
 
 User = get_user_model()
+
+
+class PostQuerySet(models.QuerySet):
+    def with_comment_count(self):
+        return self.annotate(comment_count=Count('comments'))
 
 
 class Category(BaseModel):
@@ -42,7 +47,7 @@ class Location(BaseModel):
         return self.name
 
 
-class Post(BaseModel):
+class Post(models.Model):
     title = models.CharField(
         max_length=256, verbose_name='Заголовок'
     )
@@ -72,6 +77,19 @@ class Post(BaseModel):
         upload_to='blogs_images', null=True, blank=True,
         verbose_name='Фото'
     )
+    is_published = models.BooleanField(
+        default=True,
+        verbose_name='Опубликовано',
+        help_text='Снимите галочку, чтобы скрыть публикацию.'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Добавлено'
+    )
+
+    objects = models.Manager()
+    custom_objects = PostQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'публикация'

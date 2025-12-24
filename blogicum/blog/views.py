@@ -6,7 +6,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
 from django.urls import reverse_lazy, reverse
 from datetime import timedelta
 
@@ -21,16 +20,14 @@ class PostListView(ListView):
     template_name = 'blog/index.html'
 
     def get_queryset(self):
-        queryset = Post.objects.filter(
+        queryset = Post.custom_objects.filter(
             is_published=True,
             pub_date__lte=timezone.now() + timedelta(seconds=1),
             category__is_published=True
         ).select_related('author').prefetch_related(
-            'category', 'location').order_by('-pub_date').annotate(
-                comment_count=Count('comments')
-        )
+            'category', 'location').order_by('-pub_date')
 
-        return queryset
+        return queryset.with_comment_count()
 
 
 class PostCreateView(LoginRequiredMixin, CreateView):
@@ -52,6 +49,11 @@ class PostUpdateView(UpdateView):
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
+    pk_url_kwarg = 'post_id'
+
+    def get_object(self, queryset=None):
+        post_id = self.kwargs.get('post_id')
+        return get_object_or_404(Post, id=post_id)
 
     def test_func(self):
         self.object = self.get_object()
@@ -62,16 +64,12 @@ class PostUpdateView(UpdateView):
 
     def dispatch(self, request, *args, **kwargs):
         if not self.test_func():
-            return redirect(reverse(
-                'blog:post_detail', kwargs={'post_id': self.kwargs['pk']}
-            ))
+            return redirect('blog:post_detail', post_id=self.object.pk)
         else:
             return super().dispatch(request, *args, **kwargs)
 
     def get_success_url(self):
-        return reverse_lazy(
-            'blog:post_detail', kwargs={'post_id': self.object.pk}
-        )
+        return reverse('blog:post_detail', kwargs={'post_id': self.object.pk})
 
 
 class PostDeleteView(LoginRequiredMixin, DeleteView):
@@ -115,14 +113,29 @@ class ProfileView(ListView):
     model = Post
     template_name = 'blog/profile.html'
     paginate_by = 10
+    context_object_name = 'post_list'
 
     def get_queryset(self):
         username = self.kwargs['username']
         profile = get_object_or_404(User, username=username)
-        posts = Post.objects.filter(author=profile).select_related(
+        posts = Post.custom_objects.filter(author=profile).select_related(
             'author').prefetch_related('comments', 'category', 'location')
-        posts_annotated = posts.annotate(comment_count=Count('comments'))
-        return posts_annotated.order_by('-pub_date')
+
+        is_author = (
+            self.request.user.is_authenticated
+            and self.request.user == profile
+        )
+        if not is_author:
+            # Для обычных посетителей показываем только опубликованные посты
+            posts = posts.filter(
+                is_published=True,
+                pub_date__lte=timezone.now(),
+                category__is_published=True
+            )
+
+        # Используем метод менеджера вместо annotate
+        posts_with_counts = posts.with_comment_count()
+        return posts_with_counts.order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -142,7 +155,7 @@ class CategoryPostsView(ListView):
             Category, slug=self.kwargs['category_slug'], is_published=True
         )
 
-        queryset = Post.objects.filter(
+        queryset = Post.custom_objects.filter(
             is_published=True,
             pub_date__lte=timezone.now(),
             category=self.category
@@ -150,7 +163,8 @@ class CategoryPostsView(ListView):
                          'category',
                          'location').order_by('-pub_date')
 
-        queryset = queryset.annotate(comment_count=Count('comments'))
+        # Используем метод менеджера вместо annotate
+        queryset = queryset.with_comment_count()
         queryset = queryset.filter(category__is_published=True)
 
         return queryset
